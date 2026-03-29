@@ -17,6 +17,8 @@ struct matrix {
 };
 
 matrix *mat_create(Arena *arena, int32_t rows, int32_t cols);
+matrix *mat_load(Arena *arena, uint32_t rows, int32_t cols,
+                 const char *filename);
 void mat_clear(matrix *mat);
 bool mat_copy(matrix *dst, matrix *src);
 void mat_fill(matrix *mat, float x);
@@ -33,13 +35,49 @@ bool mat_relu_add_grad(matrix *out, const matrix *in);
 bool mat_softmax_add_grad(matrix *out, const matrix *softmax_out);
 bool mat_cross_entorpy_add_grad(matrix *out, const matrix *p, const matrix *q);
 
+void draw_mnist_digit(float *data);
+
 int main() {
   Arena *perm_arena = Arena::create(MiB(1024), MiB(1), false);
-  if (perm_arena != nullptr) {
-    perm_arena->destroy();
+
+  matrix *train_images =
+      mat_load(perm_arena, 60000, 784, "../data/train_images.mat");
+  matrix *test_images =
+      mat_load(perm_arena, 10000, 784, "../data/test_images.mat");
+  matrix *train_labels = mat_create(perm_arena, 60000, 10);
+  matrix *test_labels = mat_create(perm_arena, 10000, 10);
+
+  {
+    matrix *train_labels_file =
+        mat_load(perm_arena, 60000, 1, "../data/train_labels.mat");
+    matrix *test_labels_file =
+        mat_load(perm_arena, 10000, 1, "../data/test_labels.mat");
+
+    for (uint32_t i = 0; i < 60000; i++) {
+      uint32_t num = train_labels_file->data[i];
+      train_labels->data[i * 10 + num] = 1.0f;
+    }
+
+    for (uint32_t i = 0; i < 10000; i++) {
+      uint32_t num = test_labels_file->data[i];
+      test_labels->data[i * 10 + num] = 1.0f;
+    }
   }
 
+  perm_arena->destroy();
   return 0;
+}
+
+void draw_mnist_digit(float *data) {
+  for (uint32_t y = 0; y < 28; y++) {
+    for (uint32_t x = 0; x < 28; x++) {
+      float num = data[x + y * 28];
+      uint32_t col = 232 + (uint32_t)(num * 24);
+      printf("\x1b[48;5;%dm  ", col);
+    }
+    printf("\n");
+  }
+  printf("\x1b[0m");
 }
 
 matrix *mat_create(Arena *arena, int32_t rows, int32_t cols) {
@@ -51,6 +89,33 @@ matrix *mat_create(Arena *arena, int32_t rows, int32_t cols) {
   mat->rows = rows;
   mat->cols = cols;
   mat->data = arena->push_array<float>((uint64_t)rows * cols);
+
+  return mat;
+}
+
+matrix *mat_load(Arena *arena, uint32_t rows, int32_t cols,
+                 const char *filename) {
+  matrix *mat = mat_create(arena, rows, cols);
+
+  FILE *f = fopen(filename, "rb");
+
+  if (f == nullptr) {
+    std::fprintf(stderr, "Fatal Error: Could not find or open file: %s\n",
+                 filename);
+    std::fprintf(stderr, "Make sure the 'data' folder is in the same directory "
+                         "you are running ./test_app from!\n");
+    std::exit(1); // Stop the program safely
+  }
+
+  fseek(f, 0, SEEK_END);
+  int64_t size = ftell(f);
+  fseek(f, 0, SEEK_SET);
+
+  size = std::min<int64_t>(size, sizeof(float) * rows * cols);
+
+  fread(mat->data, 1, size, f);
+
+  fclose(f);
 
   return mat;
 }
