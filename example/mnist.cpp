@@ -23,24 +23,24 @@ void draw_mnist_digit(float *data) {
 void create_mnist_model(Arena *arena, model_context *model) {
   model_var *input = mv_create(arena, model, 784, 1, MY_FLAG_INPUT);
 
-  model_var *W0 = mv_create(arena, model, 16, 784,
+  model_var *W0 = mv_create(arena, model, 128, 784,
                             MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
-  model_var *W1 = mv_create(arena, model, 16, 16,
+  model_var *W1 = mv_create(arena, model, 128, 128,
                             MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
-  model_var *W2 = mv_create(arena, model, 10, 16,
+  model_var *W2 = mv_create(arena, model, 10, 128,
                             MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
 
-  float bound0 = std::sqrt(6.0f / (784 + 16));
-  float bound1 = std::sqrt(6.0f / (16 + 16));
-  float bound2 = std::sqrt(6.0f / (16 + 10));
+  float bound0 = std::sqrt(6.0f / (784 + 128));
+  float bound1 = std::sqrt(6.0f / (128 + 128));
+  float bound2 = std::sqrt(6.0f / (128 + 10));
   mat_fill_rand(W0->val, -bound0, bound0);
   mat_fill_rand(W1->val, -bound1, bound1);
   mat_fill_rand(W2->val, -bound2, bound2);
 
   model_var *b0 =
-      mv_create(arena, model, 16, 1, MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
+      mv_create(arena, model, 128, 1, MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
   model_var *b1 =
-      mv_create(arena, model, 16, 1, MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
+      mv_create(arena, model, 128, 1, MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
   model_var *b2 =
       mv_create(arena, model, 10, 1, MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
 

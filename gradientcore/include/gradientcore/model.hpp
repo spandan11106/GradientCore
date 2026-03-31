@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cstdint>
 #include "matrix.hpp"
+#include <cstdint>
 
 namespace gradientcore {
 
@@ -70,5 +70,8 @@ model_context *model_create(class Arena *arena);
 // Model variable creation
 model_var *mv_create(class Arena *arena, model_context *model, uint32_t rows,
                      uint32_t cols, uint32_t flags);
+
+bool model_save_weights(model_context *model, const char *filename);
+bool model_load_weights(model_context *model, const char *filename);
 
 } // namespace gradientcore

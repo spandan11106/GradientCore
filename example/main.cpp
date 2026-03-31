@@ -1,7 +1,7 @@
 #include "../gradientcore/include/gradientcore/base/arena.hpp"
+#include "../gradientcore/include/gradientcore/graph.hpp"
 #include "../gradientcore/include/gradientcore/matrix.hpp"
 #include "../gradientcore/include/gradientcore/model.hpp"
-#include "../gradientcore/include/gradientcore/graph.hpp"
 #include "../gradientcore/include/gradientcore/training.hpp"
 
 #include <cstdio>
@@ -69,9 +69,9 @@ int main() {
       .test_images = test_images,
       .test_labels = test_labels,
 
-      .epochs = 3,
+      .epochs = 1,
       .batch_size = 50,
-      .learning_rate = 0.1f,
+      .learning_rate = 0.01f,
   };
 
   model_train(model, &training_desc);
@@ -86,6 +86,13 @@ int main() {
   }
 
   printf("\n");
+
+  printf("Saving trained weights to model.bin...\n");
+  if (model_save_weights(model, "model.bin")) {
+    printf("Successfully saved !!\n");
+  } else {
+    printf("Failed to save the model.\n");
+  }
 
   perm_arena->destroy();
   return 0;

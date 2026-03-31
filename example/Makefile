@@ -1,13 +1,13 @@
 CXX = g++
 LD = ld
-CXXFLAGS = -I../gradientcore -std=c++11 -Wall -Wextra
+CXXFLAGS = -I../gradientcore -std=c++17 -Wall -Wextra
 TARGET = mnist_example
+INFERENCE_TARGET = inference_example
 BUILD_DIR = .
 MONOLITHIC = gradientcore.o
 
-# All object files (intermediate, will be combined)
-OBJECTS = $(BUILD_DIR)/main.o \
-          $(BUILD_DIR)/mnist.o \
+# All core object files EXCEPT main.o and inference.o
+CORE_OBJECTS = $(BUILD_DIR)/mnist.o \
           $(BUILD_DIR)/matrix_ops.o \
           $(BUILD_DIR)/matrix_arithmetic.o \
           $(BUILD_DIR)/matrix_multiply.o \
@@ -23,19 +23,28 @@ OBJECTS = $(BUILD_DIR)/main.o \
           $(BUILD_DIR)/prng.o \
           $(BUILD_DIR)/platform.o
 
-all: $(TARGET)
+all: $(TARGET) $(INFERENCE_TARGET)
 
-$(TARGET): $(MONOLITHIC)
-	@$(CXX) $(CXXFLAGS) $< -o $@
-	@rm -f $(OBJECTS)
-	@echo "✓ Built: $(TARGET) (from monolithic $(MONOLITHIC))"
-
-$(MONOLITHIC): $(OBJECTS)
+# 1. Build the monolithic core library first
+$(MONOLITHIC): $(CORE_OBJECTS)
 	@$(LD) -r $^ -o $@
-	@echo "✓ Linked: $(MONOLITHIC) from $(words $(OBJECTS)) object files"
+	@echo "✓ Linked Core: $(MONOLITHIC)"
+
+# 2. Link the training app
+$(TARGET): $(MONOLITHIC) $(BUILD_DIR)/main.o
+	@$(CXX) $(CXXFLAGS) $(BUILD_DIR)/main.o $(MONOLITHIC) -o $@
+	@echo "✓ Built Training App: $(TARGET)"
+
+# 3. Link the inference app
+$(INFERENCE_TARGET): $(MONOLITHIC) $(BUILD_DIR)/inference.o
+	@$(CXX) $(CXXFLAGS) $(BUILD_DIR)/inference.o $(MONOLITHIC) -o $@
+	@echo "✓ Built Inference App: $(INFERENCE_TARGET)"
 
 # Example sources
 $(BUILD_DIR)/main.o: main.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/inference.o: inference.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/mnist.o: mnist.cpp
@@ -91,12 +100,15 @@ $(BUILD_DIR)/platform.o: ../gradientcore/src/platform/platform.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJECTS) $(MONOLITHIC) $(TARGET)
-	@echo "✓ Cleaned"
+	@rm -f $(CORE_OBJECTS) $(BUILD_DIR)/main.o $(BUILD_DIR)/inference.o $(MONOLITHIC) $(TARGET) $(INFERENCE_TARGET)
+	@echo "✓ Cleaned up all build artifacts"
 
 run: $(TARGET)
 	./$(TARGET)
+	@$(MAKE) clean
 
-.PHONY: all clean run
+run-inference: $(INFERENCE_TARGET)
+	./$(INFERENCE_TARGET)
+	@$(MAKE) clean
 
-.PHONY: all clean run
+.PHONY: all clean run run-inference

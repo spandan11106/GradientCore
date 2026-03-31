@@ -62,7 +62,7 @@ cd example/
 make run
 ```
 
-This trains a neural network on MNIST digits for 3 epochs. The model achieves **~94% accuracy** on the test set.
+This trains a neural network on MNIST digits for 20 epochs. The model achieves **~97% accuracy** on the test set.
 
 
 ## Project Structure

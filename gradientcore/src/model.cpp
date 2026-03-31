@@ -1,6 +1,8 @@
-#include "include/gradientcore/model.hpp"
-#include "include/gradientcore/matrix.hpp"
-#include "include/gradientcore/base/arena.hpp"
+#include "../include/gradientcore/model.hpp"
+#include "../include/gradientcore/base/arena.hpp"
+#include "../include/gradientcore/matrix.hpp"
+#include <cstdint>
+#include <cstdio>
 
 namespace gradientcore {
 
@@ -36,6 +38,42 @@ model_var *mv_create(Arena *arena, model_context *model, uint32_t rows,
   }
 
   return out;
+}
+
+bool model_save_weights(model_context *model, const char *filename) {
+  FILE *f = fopen(filename, "wb");
+  if (!f)
+    return false;
+
+  for (uint32_t i = 0; i < model->forward_prog.size; i++) {
+    model_var *cur = model->forward_prog.vars[i];
+
+    if (cur->flags & MY_FLAG_PARAMETER) {
+      uint64_t total_floats = (uint64_t)cur->val->rows * cur->val->cols;
+      fwrite(cur->val->data, sizeof(float), total_floats, f);
+    }
+  }
+
+  fclose(f);
+  return true;
+}
+
+bool model_load_weights(model_context *model, const char *filename) {
+  FILE *f = fopen(filename, "rb");
+  if (!f)
+    return false;
+
+  for (uint32_t i = 0; i < model->forward_prog.size; i++) {
+    model_var *cur = model->forward_prog.vars[i];
+
+    if (cur->flags & MY_FLAG_PARAMETER) {
+      uint64_t total_floats = (uint64_t)cur->val->rows * cur->val->cols;
+      fread(cur->val->data, sizeof(float), total_floats, f);
+    }
+  }
+
+  fclose(f);
+  return true;
 }
 
 } // namespace gradientcore
