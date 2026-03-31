@@ -25,7 +25,8 @@ test_images = test_images.astype(np.float32) / 255.0
 train_labels = train_labels.astype(np.float32)
 test_labels = test_labels.astype(np.float32)
 
-data_dir = Path("data")
+# Save to root data folder
+data_dir = Path(__file__).parent.parent / "data"
 data_dir.mkdir(exist_ok=True)
 
 train_images.tofile(data_dir / "train_images.mat")
