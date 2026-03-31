@@ -45,6 +45,9 @@ compile_commands.json
 # Allow Makefiles in source directories
 !example/Makefile
 
+# Build executables
+example/mnist_example
+
 # Logs and temporary files
 *.log
 *.tmp
