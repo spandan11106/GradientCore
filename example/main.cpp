@@ -69,7 +69,7 @@ int main() {
       .test_images = test_images,
       .test_labels = test_labels,
 
-      .epochs = 1,
+      .epochs = 100,
       .batch_size = 50,
       .learning_rate = 0.01f,
   };
