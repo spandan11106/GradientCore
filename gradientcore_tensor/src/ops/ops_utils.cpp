@@ -130,10 +130,21 @@ void tensor_accumulate_grad_matmul(Tensor *target_grad, const Tensor *tA,
   uint32_t K = tA->shape[tA->ndims - 1];
   uint32_t N = tB->shape[tB->ndims - 1];
 
-  uint32_t out_ndims = target_grad->ndims;
+  uint32_t out_ndims = std::max({target_grad->ndims, tA->ndims, tB->ndims});
+  
+  uint32_t offsetT = out_ndims - target_grad->ndims;
+  uint32_t offsetA = out_ndims - tA->ndims;
+  uint32_t offsetB = out_ndims - tB->ndims;
+
+  uint32_t batch_shape[MAX_TENSOR_DIMS];
   uint64_t batch_count = 1;
-  for (uint32_t i = 0; i < out_ndims - 2; i++) {
-    batch_count *= target_grad->shape[i];
+  
+  for (uint32_t d = 0; d < out_ndims - 2; d++) {
+    uint32_t dimT = (d >= offsetT) ? target_grad->shape[d - offsetT] : 1;
+    uint32_t dimA = (d >= offsetA) ? tA->shape[d - offsetA] : 1;
+    uint32_t dimB = (d >= offsetB) ? tB->shape[d - offsetB] : 1;
+    batch_shape[d] = std::max({dimT, dimA, dimB});
+    batch_count *= batch_shape[d];
   }
 
   uint32_t batch_indices[MAX_TENSOR_DIMS] = {0};
@@ -146,33 +157,35 @@ void tensor_accumulate_grad_matmul(Tensor *target_grad, const Tensor *tA,
           uint32_t a_idx[MAX_TENSOR_DIMS] = {0};
           uint32_t b_idx_arr[MAX_TENSOR_DIMS] = {0};
 
-          for(uint32_t d=0; d < out_ndims-2; d++){
-              a_idx[d] = batch_indices[d];
-              b_idx_arr[d] = batch_indices[d];
+          for(uint32_t d = 0; d < out_ndims - 2; d++){
+              if (d >= offsetA) a_idx[d - offsetA] = (tA->shape[d - offsetA] == 1) ? 0 : batch_indices[d];
+              if (d >= offsetB) b_idx_arr[d - offsetB] = (tB->shape[d - offsetB] == 1) ? 0 : batch_indices[d];
           }
 
           a_idx[tA->ndims - 2] = i; a_idx[tA->ndims - 1] = k;
           b_idx_arr[tB->ndims - 2] = k; b_idx_arr[tB->ndims - 1] = j;
 
-          // FIXED: Resolved physical jump offsets natively through tensor strides
           float valA = tA->storage->data[tensor_get_flat_index(tA, a_idx)];
           float valB = tB->storage->data[tensor_get_flat_index(tB, b_idx_arr)];
           sum += valA * valB;
         }
 
         uint32_t c_idx[MAX_TENSOR_DIMS] = {0};
-        for(uint32_t d=0; d < out_ndims-2; d++) c_idx[d] = batch_indices[d];
+        for(uint32_t d = 0; d < out_ndims - 2; d++) {
+            if (d >= offsetT) c_idx[d - offsetT] = (target_grad->shape[d - offsetT] == 1) ? 0 : batch_indices[d];
+        }
         c_idx[target_grad->ndims - 2] = i; c_idx[target_grad->ndims - 1] = j;
         
         target_grad->storage->data[tensor_get_flat_index(target_grad, c_idx)] += sum;
       }
     }
 
-    // Increment batch odometer
-    for (int32_t d = out_ndims - 3; d >= 0; d--) {
-      batch_indices[d]++;
-      if (batch_indices[d] < target_grad->shape[d]) break;
-      batch_indices[d] = 0;
+    if (out_ndims > 2) {
+      for (int32_t d = out_ndims - 3; d >= 0; d--) {
+        batch_indices[d]++;
+        if (batch_indices[d] < batch_shape[d]) break;
+        batch_indices[d] = 0;
+      }
     }
   }
 }
