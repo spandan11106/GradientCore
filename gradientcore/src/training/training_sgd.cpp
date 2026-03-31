@@ -1,7 +1,8 @@
-#include "include/gradientcore/training.hpp"
-#include "include/gradientcore/graph.hpp"
-#include "include/gradientcore/base/arena.hpp"
-#include "include/gradientcore/base/prng.hpp"
+#include "../../include/gradientcore/training.hpp"
+#include "../../include/gradientcore/graph.hpp"
+#include "../../include/gradientcore/matrix.hpp"
+#include "../../include/gradientcore/base/arena.hpp"
+#include "../../include/gradientcore/base/prng.hpp"
 
 #include <cstdio>
 #include <cstring>
