@@ -64,7 +64,7 @@ void model_train(model_context *model,
         model_prog_compute(&model->cost_prog);
         model_program_compute_grads(&model->cost_prog);
 
-        avg_cost = mat_sum(model->cost->val);
+        avg_cost += mat_sum(model->cost->val);
       }
       avg_cost /= (float)training_desc->batch_size;
 
