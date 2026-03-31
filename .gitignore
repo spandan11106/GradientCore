@@ -41,7 +41,9 @@ cmake-build-*/
 CMakeFiles/
 CMakeCache.txt
 compile_commands.json
-Makefile
+
+# Allow Makefiles in source directories
+!example/Makefile
 
 # Logs and temporary files
 *.log
