@@ -16,6 +16,7 @@ This project is inspired by [Magicalbat](https://github.com/Magicalbat)'s origin
 - **Modular Architecture**: Clean separation of concerns across matrix operations, operators, graph computation, and training
 - **Memory Efficient**: Custom arena allocator for fast memory management
 - **Cross-Platform**: Platform abstraction layer supporting Linux and Windows
+- **Model Persistence**: Save and load trained model weights for inference
 - **Lightweight**: No external dependencies for the core library (example uses TensorFlow for data loading)
 
 ## Example Application: MNIST Digit Classification
@@ -25,6 +26,8 @@ The `example/` folder contains a complete MNIST digit classification application
 - Creating a neural network with hidden layers and ReLU activations
 - Training with cross-entropy loss and SGD optimizer
 - Evaluating accuracy on test data
+- Saving trained model weights
+- Loading and running inference on new data
 
 ### Getting Started
 
@@ -62,8 +65,18 @@ cd example/
 make run
 ```
 
-This trains a neural network on MNIST digits for 20 epochs. The model achieves **~97% accuracy** on the test set.
+This trains a neural network on MNIST digits for 100 epochs, then saves the model to `model.bin`. The model achieves **~98% accuracy** on the test set.
 
+#### 4. Run Inference
+
+After training, use the inference program to test predictions on individual images:
+
+```bash
+cd example/
+make run-inference
+```
+
+The inference program loads the saved model and allows you to test predictions by entering an image index (0-9999).
 
 ## Project Structure
 
@@ -86,10 +99,12 @@ GradientCore/
 │       ├── base/              # Arena allocator and PRNG
 │       └── platform/          # Platform-specific code
 ├── example/                   # MNIST example application
-│   ├── main.cpp               # Application entry point
+│   ├── main.cpp               # Training entry point
+│   ├── inference.cpp          # Inference entry point
 │   ├── mnist.cpp              # MNIST-specific helpers
 │   ├── enlist.py              # Dataset download script
 │   ├── Makefile               # Build configuration
+│   ├── model.bin              # Saved model weights (generated)
 │   └── README.md              # Example usage guide
 └── data/                      # Training and test data
 ```
