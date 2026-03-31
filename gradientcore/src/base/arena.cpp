@@ -149,7 +149,7 @@ void Arena::pop_to(uint64_t pos) {
 // thread_local replaces TS_THREAD_LOCAL
 static thread_local Arena *scratch_arenas[ARENA_NUM_SCRATCH] = {nullptr};
 
-ArenaTemp scratch_get(Arena **conflicts, uint32_t num_conflicts) {
+ArenaTemp scratch_get(Arena **conflicts, uint64_t num_conflicts) {
   int32_t scratch_index = -1;
 
   for (int32_t i = 0; i < ARENA_NUM_SCRATCH; i++) {

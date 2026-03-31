@@ -4,9 +4,11 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 
 using namespace gradientcore;
 
@@ -21,8 +23,10 @@ matrix *mat_load(Arena *arena, uint32_t rows, int32_t cols,
 void mat_clear(matrix *mat);
 bool mat_copy(matrix *dst, matrix *src);
 void mat_fill(matrix *mat, float x);
+void mat_fill_rand(matrix *mat, float lower, float upper);
 void mat_scale(matrix *mat, float scale);
 float mat_sum(matrix *mat);
+uint32_t mat_argmax(matrix *mat);
 bool mat_add(matrix *out, const matrix *a, const matrix *b);
 bool mat_sub(matrix *out, const matrix *a, const matrix *b);
 bool mat_mul(matrix *out, const matrix *a, const matrix *b, bool zero_out,
@@ -107,7 +111,7 @@ struct model_training_desc {
 };
 
 model_var *mv_create(Arena *arena, model_context *model, uint32_t rows,
-                     uint32_t cols, uint32_t flags, model_var_op op);
+                     uint32_t cols, uint32_t flags);
 
 model_var *mv_relu(Arena *arena, model_context *model, model_var *input,
                    uint32_t flags);
@@ -139,6 +143,7 @@ void model_train(model_context *model,
                  const model_training_desc *training_desc);
 
 void draw_mnist_digit(float *data);
+void create_mnist_model(Arena *arena, model_context *model);
 
 int main() {
   Arena *perm_arena = Arena::create(MiB(1024), MiB(1), false);
@@ -167,6 +172,51 @@ int main() {
     }
   }
 
+  draw_mnist_digit(train_images->data);
+  for (uint32_t i = 0; i < 10; i++) {
+    printf("%.0f ", train_labels->data[i]);
+  }
+  printf("\n\n");
+
+  model_context *model = model_create(perm_arena);
+  create_mnist_model(perm_arena, model);
+  model_compile(perm_arena, model);
+
+  memcpy(model->input->val->data, train_images->data, sizeof(float) * 784);
+
+  model_feedforward(model);
+
+  printf("pre-training output: \n");
+  for (uint32_t i = 0; i < 10; i++) {
+    printf("%.2f ", model->output->val->data[i]);
+  }
+
+  printf("\n\n");
+
+  model_training_desc training_desc = {
+      .train_images = train_images,
+      .train_labels = train_labels,
+      .test_images = test_images,
+      .test_labels = test_labels,
+
+      .epochs = 50,
+      .batch_size = 50,
+      .learning_rate = 0.001f,
+  };
+
+  model_train(model, &training_desc);
+
+  memcpy(model->input->val->data, train_images->data, sizeof(float) * 784);
+
+  model_feedforward(model);
+
+  printf("post-training output: \n ");
+  for (uint32_t i = 0; i < 10; i++) {
+    printf("%.2f ", model->output->val->data[i]);
+  }
+
+  printf("\n");
+
   perm_arena->destroy();
   return 0;
 }
@@ -181,6 +231,47 @@ void draw_mnist_digit(float *data) {
     printf("\n");
   }
   printf("\x1b[0m");
+}
+
+void create_mnist_model(Arena *arena, model_context *model) {
+  model_var *input = mv_create(arena, model, 784, 1, MY_FLAG_INPUT);
+
+  model_var *W0 = mv_create(arena, model, 16, 784,
+                            MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
+  model_var *W1 = mv_create(arena, model, 16, 16,
+                            MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
+  model_var *W2 = mv_create(arena, model, 10, 16,
+                            MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
+
+  float bound0 = std::sqrt(6.0f / (784 + 16));
+  float bound1 = std::sqrt(6.0f / (16 + 16));
+  float bound2 = std::sqrt(6.0f / (16 + 10));
+  mat_fill_rand(W0->val, -bound0, bound0);
+  mat_fill_rand(W1->val, -bound1, bound1);
+  mat_fill_rand(W2->val, -bound2, bound2);
+
+  model_var *b0 =
+      mv_create(arena, model, 16, 1, MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
+  model_var *b1 =
+      mv_create(arena, model, 16, 1, MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
+  model_var *b2 =
+      mv_create(arena, model, 10, 1, MY_FLAG_REQUIRES_GRAD | MY_FLAG_PARAMETER);
+
+  model_var *z0_a = mv_matmul(arena, model, W0, input, 0);
+  model_var *z0_b = mv_add(arena, model, z0_a, b0, 0);
+  model_var *a0 = mv_relu(arena, model, z0_b, 0);
+
+  model_var *z1_a = mv_matmul(arena, model, W1, a0, 0);
+  model_var *z1_b = mv_add(arena, model, z1_a, b1, 0);
+  model_var *z1_c = mv_relu(arena, model, z1_b, 0);
+  model_var *a1 = mv_add(arena, model, z1_c, a0, 0);
+
+  model_var *z2_a = mv_matmul(arena, model, W2, a1, 0);
+  model_var *z2_b = mv_add(arena, model, z2_a, b2, 0);
+  model_var *output = mv_softmax(arena, model, z2_b, MY_FLAG_OUTPUT);
+
+  model_var *y = mv_create(arena, model, 10, 1, MY_FLAG_DESIRED_OUTPUT);
+  model_var *cost = mv_cross_entopy(arena, model, y, output, MY_FLAG_COST);
 }
 
 matrix *mat_create(Arena *arena, int32_t rows, int32_t cols) {
@@ -244,6 +335,13 @@ void mat_fill(matrix *mat, float x) {
   }
 }
 
+void mat_fill_rand(matrix *mat, float lower, float upper) {
+  uint64_t size = (uint64_t)mat->rows * mat->cols;
+  for (uint64_t i = 0; i < size; i++) {
+    mat->data[i] = prng::randf() * (upper - lower) + lower;
+  }
+}
+
 void mat_scale(matrix *mat, float scale) {
   uint64_t size = (uint64_t)mat->rows * mat->cols;
   for (uint64_t i = 0; i < size; i++) {
@@ -259,6 +357,18 @@ float mat_sum(matrix *mat) {
   }
 
   return sum;
+}
+
+uint32_t mat_argmax(matrix *mat) {
+  uint64_t size = (uint64_t)mat->rows * mat->cols;
+  uint64_t max_i = 0;
+  for (uint64_t i = 0; i < size; i++) {
+    if (mat->data[i] > mat->data[max_i]) {
+      max_i = i;
+    }
+  }
+
+  return max_i;
 }
 
 bool mat_add(matrix *out, const matrix *a, const matrix *b) {
@@ -616,8 +726,9 @@ model_program model_prog_create(Arena *arena, model_context *model,
   ArenaTemp scratch = scratch_get(&arena, 1);
 
   bool *visited = scratch.arena->push_array<bool>(model->num_vars);
+  memset(visited, 0, sizeof(bool) * model->num_vars);
   uint32_t stack_size = 0;
-  uint32_t out_size;
+  uint32_t out_size = 0;
   model_var **stack = scratch.arena->push_array<model_var *>(model->num_vars);
   model_var **out = scratch.arena->push_array<model_var *>(model->num_vars);
 
@@ -727,7 +838,7 @@ void model_program_compute_grads(model_program *prog) {
       continue;
     }
 
-    if ((cur->flags & MY_FLAG_REQUIRES_GRAD)) {
+    if (cur->flags & MY_FLAG_PARAMETER) {
       continue;
     }
 
@@ -809,5 +920,123 @@ void model_program_compute_grads(model_program *prog) {
       mat_cross_entorpy_add_grad(p->grad, q->grad, p->val, q->val, cur->grad);
     } break;
     }
+  }
+}
+
+model_context *model_create(Arena *arena) {
+  model_context *model = arena->push<model_context>();
+
+  return model;
+}
+
+void model_compile(Arena *arena, model_context *model) {
+  if (model->output != NULL) {
+    model->forward_prog = model_prog_create(arena, model, model->output);
+  }
+  if (model->cost != NULL) {
+    model->cost_prog = model_prog_create(arena, model, model->cost);
+  }
+}
+
+void model_feedforward(model_context *model) {
+  model_prog_compute(&model->forward_prog);
+}
+
+void model_train(model_context *model,
+                 const model_training_desc *training_desc) {
+  matrix *train_images = training_desc->train_images;
+  matrix *train_labels = training_desc->train_labels;
+  matrix *test_images = training_desc->test_images;
+  matrix *test_labels = training_desc->test_labels;
+
+  uint32_t num_examples = train_images->rows;
+  uint32_t input_size = train_images->cols;
+  uint32_t output_size = train_labels->cols;
+  uint32_t num_test = test_images->rows;
+
+  uint32_t num_batches = num_examples / training_desc->batch_size;
+
+  ArenaTemp scratch = scratch_get(NULL, 0);
+
+  uint32_t *training_order =
+      scratch.arena->push_array<uint32_t>(num_examples, true);
+  for (uint32_t i = 0; i < num_examples; i++) {
+    training_order[i] = i;
+  }
+
+  for (uint32_t epoch = 0; epoch < training_desc->epochs; epoch++) {
+    for (uint32_t i = 0; i < num_examples; i++) {
+      uint32_t a = prng::rand() % num_examples;
+      uint32_t b = prng::rand() % num_examples;
+
+      uint32_t tmp = training_order[b];
+      training_order[b] = training_order[a];
+      training_order[a] = tmp;
+    }
+
+    for (uint32_t batch = 0; batch < num_batches; batch++) {
+      for (uint32_t i = 0; i < model->cost_prog.size; i++) {
+        model_var *cur = model->cost_prog.vars[i];
+
+        if (cur->flags & MY_FLAG_PARAMETER) {
+          mat_clear(cur->grad);
+        }
+      }
+      float avg_cost = 0.0f;
+      for (uint32_t i = 0; i < training_desc->batch_size; i++) {
+        uint32_t order_index = batch * training_desc->batch_size + i;
+        uint32_t index = training_order[order_index];
+
+        memcpy(model->input->val->data, train_images->data + index * input_size,
+               sizeof(float) + input_size);
+
+        memcpy(model->desired_output->val->data,
+               train_labels->data + index * output_size,
+               sizeof(float) * output_size);
+
+        model_prog_compute(&model->cost_prog);
+        model_program_compute_grads(&model->cost_prog);
+
+        avg_cost = mat_sum(model->cost->val);
+      }
+      avg_cost /= (float)training_desc->batch_size;
+
+      for (uint32_t i = 0; i < model->cost_prog.size; i++) {
+        model_var *cur = model->cost_prog.vars[i];
+
+        if ((cur->flags & MY_FLAG_PARAMETER) != MY_FLAG_PARAMETER) {
+          continue;
+        }
+
+        mat_scale(cur->grad,
+                  training_desc->learning_rate / training_desc->batch_size);
+        mat_sub(cur->val, cur->val, cur->grad);
+      }
+
+      printf("Epoch %2d / %2d, Batch %4d / %4d, Avarage Cost: %.4f\r",
+             epoch + 1, training_desc->epochs, batch + 1, num_batches,
+             avg_cost);
+    }
+    printf("\n");
+
+    uint32_t num_correct = 0;
+    float avg_cost = 0;
+    for (uint32_t i = 0; i < num_test; i++) {
+      memcpy(model->input->val->data, test_images->data + i * input_size,
+             sizeof(float) + input_size);
+
+      memcpy(model->desired_output->val->data,
+             test_labels->data + i * output_size, sizeof(float) * output_size);
+
+      model_prog_compute(&model->cost_prog);
+      avg_cost += mat_sum(model->cost->val);
+      num_correct += mat_argmax(model->output->val) ==
+                     mat_argmax(model->desired_output->val);
+    }
+
+    avg_cost /= (float)num_test;
+    printf("Test Completed : Accuracy %5d / %d (%1f%%), Avarage Cost: %.4f\n",
+           num_correct, num_test, (float)num_correct / num_test * 100.0f,
+           avg_cost);
   }
 }
