@@ -102,7 +102,7 @@ void model_train(model_context *model,
     }
 
     avg_cost /= (float)num_test;
-    printf("Test Completed : Accuracy %5d / %d (%1f%%), Avarage Cost: %.4f\n",
+    printf("Test Completed : Accuracy %5d / %d (%1f%%), Average Cost: %.4f\n",
            num_correct, num_test, (float)num_correct / num_test * 100.0f,
            avg_cost);
   }
