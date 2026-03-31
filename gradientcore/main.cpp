@@ -199,9 +199,9 @@ int main() {
       .test_images = test_images,
       .test_labels = test_labels,
 
-      .epochs = 50,
+      .epochs = 3,
       .batch_size = 50,
-      .learning_rate = 0.001f,
+      .learning_rate = 0.1f,
   };
 
   model_train(model, &training_desc);
@@ -602,7 +602,11 @@ bool mat_cross_entorpy_add_grad(matrix *p_grad, matrix *q_grad, const matrix *p,
     }
 
     for (uint64_t i = 0; i < size; i++) {
-      q_grad->data[i] += (-1) * (p->data[i] / q->data[i]) * grad->data[i];
+      float qi = q->data[i];
+      if (!(qi > 0.0f)) {
+        qi = 1e-12f;
+      }
+      q_grad->data[i] += (-1) * (p->data[i] / qi) * grad->data[i];
     }
   }
 
@@ -988,7 +992,7 @@ void model_train(model_context *model,
         uint32_t index = training_order[order_index];
 
         memcpy(model->input->val->data, train_images->data + index * input_size,
-               sizeof(float) + input_size);
+               sizeof(float) * input_size);
 
         memcpy(model->desired_output->val->data,
                train_labels->data + index * output_size,
@@ -1023,7 +1027,7 @@ void model_train(model_context *model,
     float avg_cost = 0;
     for (uint32_t i = 0; i < num_test; i++) {
       memcpy(model->input->val->data, test_images->data + i * input_size,
-             sizeof(float) + input_size);
+             sizeof(float) * input_size);
 
       memcpy(model->desired_output->val->data,
              test_labels->data + i * output_size, sizeof(float) * output_size);
