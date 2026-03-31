@@ -98,4 +98,106 @@ void apply_binary_op(Tensor *out, const Tensor *a_view, const Tensor *b_view,
   }
 }
 
+void tensor_accumulate_grad(Tensor *target_grad, const Tensor *upstream_grad,
+                            float scale) {
+  uint32_t indices[MAX_TENSOR_DIMS] = {0};
+
+  for (uint64_t i = 0; i < upstream_grad->size; i++) {
+    uint64_t idx_upstream = tensor_get_flat_index(upstream_grad, indices);
+
+    uint32_t target_indices[MAX_TENSOR_DIMS] = {0};
+    int32_t dim_offset = upstream_grad->ndims - target_grad->ndims;
+
+    // Map upstream indices to target indices (handling broadcast reduction)
+    for (uint32_t d = 0; d < target_grad->ndims; d++) {
+      uint32_t up_d = d + dim_offset;
+      target_indices[d] = (target_grad->shape[d] == 1) ? 0 : indices[up_d];
+    }
+
+    uint64_t idx_target = tensor_get_flat_index(target_grad, target_indices);
+
+    target_grad->storage->data[idx_target] +=
+        upstream_grad->storage->data[idx_upstream] * scale;
+
+    for (int32_t d = upstream_grad->ndims - 1; d >= 0; d--) {
+      indices[d]++;
+      if (indices[d] < upstream_grad->shape[d])
+        break;
+      indices[d] = 0;
+    }
+  }
+}
+
+void tensor_accumulate_grad_matmul(Tensor *target_grad, const Tensor *tA,
+                                   const Tensor *tB) {
+  if (tA->ndims < 2 || tB->ndims < 2)
+    return;
+
+  uint32_t M = tA->shape[tA->ndims - 2];
+  uint32_t K = tA->shape[tA->ndims - 1];
+  uint32_t N = tB->shape[tB->ndims - 1];
+
+  uint32_t out_ndims = target_grad->ndims;
+  uint64_t batch_count = 1;
+  for (uint32_t i = 0; i < out_ndims - 2; i++) {
+    batch_count *= target_grad->shape[i];
+  }
+
+  for (uint64_t b_idx = 0; b_idx < batch_count; b_idx++) {
+    uint64_t offset_A = b_idx * (M * K);
+    uint64_t offset_B = b_idx * (K * N);
+    uint64_t offset_C = b_idx * (M * N);
+
+    for (uint32_t i = 0; i < M; i++) {
+      for (uint32_t j = 0; j < N; j++) {
+        float sum = 0.0f;
+        for (uint32_t k = 0; k < K; k++) {
+          uint32_t a_idx[MAX_TENSOR_DIMS] = {0};
+          uint32_t b_idx_arr[MAX_TENSOR_DIMS] = {0};
+
+          a_idx[tA->ndims - 2] = i;
+          a_idx[tA->ndims - 1] = k;
+          b_idx_arr[tB->ndims - 2] = k;
+          b_idx_arr[tB->ndims - 1] = j;
+
+          float valA =
+              tA->storage->data[tensor_get_flat_index(tA, a_idx) + offset_A];
+          float valB =
+              tB->storage
+                  ->data[tensor_get_flat_index(tB, b_idx_arr) + offset_B];
+          sum += valA * valB;
+        }
+
+        uint32_t c_idx[MAX_TENSOR_DIMS] = {0};
+        c_idx[target_grad->ndims - 2] = i;
+        c_idx[target_grad->ndims - 1] = j;
+        target_grad->storage
+            ->data[tensor_get_flat_index(target_grad, c_idx) + offset_C] += sum;
+      }
+    }
+  }
+}
+
+void tensor_accumulate_grad_softmax(Tensor *a_grad, const Tensor *out_val,
+                                    const Tensor *upstream_grad) {
+  uint32_t C = out_val->shape[out_val->ndims - 1];
+  uint64_t outer_size = out_val->size / C;
+
+  for (uint64_t i = 0; i < outer_size; i++) {
+    uint64_t offset = i * C;
+
+    float dot = 0.0f;
+    for (uint32_t j = 0; j < C; j++) {
+      dot += out_val->storage->data[offset + j] *
+             upstream_grad->storage->data[offset + j];
+    }
+
+    for (uint32_t j = 0; j < C; j++) {
+      float y_i = out_val->storage->data[offset + j];
+      float dy_i = upstream_grad->storage->data[offset + j];
+      a_grad->storage->data[offset + j] += y_i * (dy_i - dot);
+    }
+  }
+}
+
 } // namespace gradientcore
