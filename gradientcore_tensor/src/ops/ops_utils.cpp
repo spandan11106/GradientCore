@@ -25,9 +25,7 @@ bool broadcast_shapes(const Tensor *a, const Tensor *b, uint32_t *out_ndims,
       return false;
     }
 
-    a_idx--;
-    b_idx--;
-    out_idx--;
+    a_idx--; b_idx--; out_idx--;
   }
 
   return true;
@@ -70,8 +68,7 @@ void apply_unary_op(Tensor *out, const Tensor *a, UnaryMathOp op) {
 
     for (int32_t d = out->ndims - 1; d >= 0; d--) {
       indices[d]++;
-      if (indices[d] < out->shape[d])
-        break;
+      if (indices[d] < out->shape[d]) break;
       indices[d] = 0;
     }
   }
@@ -91,8 +88,7 @@ void apply_binary_op(Tensor *out, const Tensor *a_view, const Tensor *b_view,
 
     for (int32_t d = out->ndims - 1; d >= 0; d--) {
       indices[d]++;
-      if (indices[d] < out->shape[d])
-        break;
+      if (indices[d] < out->shape[d]) break;
       indices[d] = 0;
     }
   }
@@ -108,7 +104,6 @@ void tensor_accumulate_grad(Tensor *target_grad, const Tensor *upstream_grad,
     uint32_t target_indices[MAX_TENSOR_DIMS] = {0};
     int32_t dim_offset = upstream_grad->ndims - target_grad->ndims;
 
-    // Map upstream indices to target indices (handling broadcast reduction)
     for (uint32_t d = 0; d < target_grad->ndims; d++) {
       uint32_t up_d = d + dim_offset;
       target_indices[d] = (target_grad->shape[d] == 1) ? 0 : indices[up_d];
@@ -121,8 +116,7 @@ void tensor_accumulate_grad(Tensor *target_grad, const Tensor *upstream_grad,
 
     for (int32_t d = upstream_grad->ndims - 1; d >= 0; d--) {
       indices[d]++;
-      if (indices[d] < upstream_grad->shape[d])
-        break;
+      if (indices[d] < upstream_grad->shape[d]) break;
       indices[d] = 0;
     }
   }
@@ -130,8 +124,7 @@ void tensor_accumulate_grad(Tensor *target_grad, const Tensor *upstream_grad,
 
 void tensor_accumulate_grad_matmul(Tensor *target_grad, const Tensor *tA,
                                    const Tensor *tB) {
-  if (tA->ndims < 2 || tB->ndims < 2)
-    return;
+  if (tA->ndims < 2 || tB->ndims < 2) return;
 
   uint32_t M = tA->shape[tA->ndims - 2];
   uint32_t K = tA->shape[tA->ndims - 1];
@@ -143,11 +136,9 @@ void tensor_accumulate_grad_matmul(Tensor *target_grad, const Tensor *tA,
     batch_count *= target_grad->shape[i];
   }
 
-  for (uint64_t b_idx = 0; b_idx < batch_count; b_idx++) {
-    uint64_t offset_A = b_idx * (M * K);
-    uint64_t offset_B = b_idx * (K * N);
-    uint64_t offset_C = b_idx * (M * N);
+  uint32_t batch_indices[MAX_TENSOR_DIMS] = {0};
 
+  for (uint64_t b_idx = 0; b_idx < batch_count; b_idx++) {
     for (uint32_t i = 0; i < M; i++) {
       for (uint32_t j = 0; j < N; j++) {
         float sum = 0.0f;
@@ -155,25 +146,33 @@ void tensor_accumulate_grad_matmul(Tensor *target_grad, const Tensor *tA,
           uint32_t a_idx[MAX_TENSOR_DIMS] = {0};
           uint32_t b_idx_arr[MAX_TENSOR_DIMS] = {0};
 
-          a_idx[tA->ndims - 2] = i;
-          a_idx[tA->ndims - 1] = k;
-          b_idx_arr[tB->ndims - 2] = k;
-          b_idx_arr[tB->ndims - 1] = j;
+          for(uint32_t d=0; d < out_ndims-2; d++){
+              a_idx[d] = batch_indices[d];
+              b_idx_arr[d] = batch_indices[d];
+          }
 
-          float valA =
-              tA->storage->data[tensor_get_flat_index(tA, a_idx) + offset_A];
-          float valB =
-              tB->storage
-                  ->data[tensor_get_flat_index(tB, b_idx_arr) + offset_B];
+          a_idx[tA->ndims - 2] = i; a_idx[tA->ndims - 1] = k;
+          b_idx_arr[tB->ndims - 2] = k; b_idx_arr[tB->ndims - 1] = j;
+
+          // FIXED: Resolved physical jump offsets natively through tensor strides
+          float valA = tA->storage->data[tensor_get_flat_index(tA, a_idx)];
+          float valB = tB->storage->data[tensor_get_flat_index(tB, b_idx_arr)];
           sum += valA * valB;
         }
 
         uint32_t c_idx[MAX_TENSOR_DIMS] = {0};
-        c_idx[target_grad->ndims - 2] = i;
-        c_idx[target_grad->ndims - 1] = j;
-        target_grad->storage
-            ->data[tensor_get_flat_index(target_grad, c_idx) + offset_C] += sum;
+        for(uint32_t d=0; d < out_ndims-2; d++) c_idx[d] = batch_indices[d];
+        c_idx[target_grad->ndims - 2] = i; c_idx[target_grad->ndims - 1] = j;
+        
+        target_grad->storage->data[tensor_get_flat_index(target_grad, c_idx)] += sum;
       }
+    }
+
+    // Increment batch odometer
+    for (int32_t d = out_ndims - 3; d >= 0; d--) {
+      batch_indices[d]++;
+      if (batch_indices[d] < target_grad->shape[d]) break;
+      batch_indices[d] = 0;
     }
   }
 }
@@ -183,19 +182,34 @@ void tensor_accumulate_grad_softmax(Tensor *a_grad, const Tensor *out_val,
   uint32_t C = out_val->shape[out_val->ndims - 1];
   uint64_t outer_size = out_val->size / C;
 
-  for (uint64_t i = 0; i < outer_size; i++) {
-    uint64_t offset = i * C;
+  uint32_t indices[MAX_TENSOR_DIMS] = {0};
 
+  for (uint64_t i = 0; i < outer_size; i++) {
+    // FIXED: Dropped physical `offset = i * C;` for odometer indexing
     float dot = 0.0f;
     for (uint32_t j = 0; j < C; j++) {
-      dot += out_val->storage->data[offset + j] *
-             upstream_grad->storage->data[offset + j];
+      indices[out_val->ndims - 1] = j;
+      float y_i = out_val->storage->data[tensor_get_flat_index(out_val, indices)];
+      float dy_i = upstream_grad->storage->data[tensor_get_flat_index(upstream_grad, indices)];
+      dot += y_i * dy_i;
     }
 
     for (uint32_t j = 0; j < C; j++) {
-      float y_i = out_val->storage->data[offset + j];
-      float dy_i = upstream_grad->storage->data[offset + j];
-      a_grad->storage->data[offset + j] += y_i * (dy_i - dot);
+      indices[out_val->ndims - 1] = j;
+      uint64_t idx_out = tensor_get_flat_index(out_val, indices);
+      uint64_t idx_up = tensor_get_flat_index(upstream_grad, indices);
+      uint64_t idx_grad = tensor_get_flat_index(a_grad, indices);
+
+      float y_i = out_val->storage->data[idx_out];
+      float dy_i = upstream_grad->storage->data[idx_up];
+      a_grad->storage->data[idx_grad] += y_i * (dy_i - dot);
+    }
+
+    // Odometer increment for outer dimensions
+    for (int32_t d = out_val->ndims - 2; d >= 0; d--) {
+      indices[d]++;
+      if (indices[d] < out_val->shape[d]) break;
+      indices[d] = 0;
     }
   }
 }

@@ -18,24 +18,36 @@ Node *node_softmax(Arena *arena, GraphContext *ctx, Node *a) {
   uint32_t C = tA->shape[tA->ndims - 1];
   uint64_t outer_size = tA->size / C;
 
-  for (uint64_t i = 0; i < outer_size; i++) {
-    uint64_t offset = i * C;
+  uint32_t indices[MAX_TENSOR_DIMS] = {0};
 
-    float max_val = tA->storage->data[offset];
+  for (uint64_t i = 0; i < outer_size; i++) {
+
+    indices[tA->ndims - 1] = 0;
+    float max_val = tA->storage->data[tensor_get_flat_index(tA, indices)];
+    
     for (uint32_t j = 1; j < C; j++) {
-      max_val = std::max(max_val, tA->storage->data[offset + j]);
+      indices[tA->ndims - 1] = j;
+      max_val = std::max(max_val, tA->storage->data[tensor_get_flat_index(tA, indices)]);
     }
 
     float sum = 0.0f;
     for (uint32_t j = 0; j < C; j++) {
-      float e = std::exp(tA->storage->data[offset + j] - max_val);
-      out->val->storage->data[offset + j] = e;
+      indices[tA->ndims - 1] = j;
+      float e = std::exp(tA->storage->data[tensor_get_flat_index(tA, indices)] - max_val);
+      out->val->storage->data[tensor_get_flat_index(out->val, indices)] = e;
       sum += e;
     }
 
     float inv_sum = 1.0f / sum;
     for (uint32_t j = 0; j < C; j++) {
-      out->val->storage->data[offset + j] *= inv_sum;
+      indices[tA->ndims - 1] = j;
+      out->val->storage->data[tensor_get_flat_index(out->val, indices)] *= inv_sum;
+    }
+
+    for (int32_t d = tA->ndims - 2; d >= 0; d--) {
+      indices[d]++;
+      if (indices[d] < tA->shape[d]) break;
+      indices[d] = 0;
     }
   }
 

@@ -34,7 +34,13 @@ inline void tensor_accumulate_grad_custom(Tensor *target_grad,
   uint32_t indices[MAX_TENSOR_DIMS] = {0};
   for (uint64_t i = 0; i < upstream_grad->size; i++) {
     uint64_t idx_up = tensor_get_flat_index(upstream_grad, indices);
-    uint64_t idx_val = tensor_get_flat_index(val_tensor, indices);
+
+    uint32_t val_indices[MAX_TENSOR_DIMS] = {0};
+    int32_t val_dim_offset = upstream_grad->ndims - val_tensor->ndims;
+    for (uint32_t d = 0; d < val_tensor->ndims; d++) {
+      val_indices[d] = (val_tensor->shape[d] == 1) ? 0 : indices[d + val_dim_offset];
+    }
+    uint64_t idx_val = tensor_get_flat_index(val_tensor, val_indices);
 
     uint32_t target_indices[MAX_TENSOR_DIMS] = {0};
     int32_t dim_offset = upstream_grad->ndims - target_grad->ndims;
@@ -42,10 +48,8 @@ inline void tensor_accumulate_grad_custom(Tensor *target_grad,
       target_indices[d] =
           (target_grad->shape[d] == 1) ? 0 : indices[d + dim_offset];
     }
-
     uint64_t idx_target = tensor_get_flat_index(target_grad, target_indices);
 
-    // Apply the chain rule inline!
     target_grad->storage->data[idx_target] +=
         derivative_func(val_tensor->storage->data[idx_val],
                         upstream_grad->storage->data[idx_up]);
@@ -68,8 +72,20 @@ inline void tensor_accumulate_grad_binary_custom(Tensor *target_grad,
   uint32_t indices[MAX_TENSOR_DIMS] = {0};
   for (uint64_t i = 0; i < upstream_grad->size; i++) {
     uint64_t idx_up = tensor_get_flat_index(upstream_grad, indices);
-    uint64_t idx_a = tensor_get_flat_index(a_val, indices);
-    uint64_t idx_b = tensor_get_flat_index(b_val, indices);
+
+    uint32_t a_indices[MAX_TENSOR_DIMS] = {0};
+    int32_t a_dim_offset = upstream_grad->ndims - a_val->ndims;
+    for (uint32_t d = 0; d < a_val->ndims; d++) {
+      a_indices[d] = (a_val->shape[d] == 1) ? 0 : indices[d + a_dim_offset];
+    }
+    uint64_t idx_a = tensor_get_flat_index(a_val, a_indices);
+
+    uint32_t b_indices[MAX_TENSOR_DIMS] = {0};
+    int32_t b_dim_offset = upstream_grad->ndims - b_val->ndims;
+    for (uint32_t d = 0; d < b_val->ndims; d++) {
+      b_indices[d] = (b_val->shape[d] == 1) ? 0 : indices[d + b_dim_offset];
+    }
+    uint64_t idx_b = tensor_get_flat_index(b_val, b_indices);
 
     uint32_t target_indices[MAX_TENSOR_DIMS] = {0};
     int32_t dim_offset = upstream_grad->ndims - target_grad->ndims;
@@ -77,7 +93,6 @@ inline void tensor_accumulate_grad_binary_custom(Tensor *target_grad,
       target_indices[d] =
           (target_grad->shape[d] == 1) ? 0 : indices[d + dim_offset];
     }
-
     uint64_t idx_target = tensor_get_flat_index(target_grad, target_indices);
 
     target_grad->storage->data[idx_target] += derivative_func(
