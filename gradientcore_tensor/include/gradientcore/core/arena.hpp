@@ -8,7 +8,7 @@
 
 namespace gradientcore {
 
-constexpr size_t ARENA_ALIGN = sizeof(void *);
+constexpr size_t ARENA_ALIGN = 32;
 constexpr size_t ARENA_NUM_SCRATCH = 2;
 
 constexpr uint64_t MiB(uint64_t n) { return n << 20; }
