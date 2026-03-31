@@ -22,6 +22,11 @@ enum OpType {
   _OP_UNARY_START,
   OP_RELU,
   OP_SOFTMAX,
+  OP_SIGMOID,
+  OP_TANH,
+  OP_GELU,
+  OP_SILU,
+  OP_LEAKY_RELU,
 
   // Binary Ops
   _OP_BINARY_START,
@@ -29,7 +34,10 @@ enum OpType {
   OP_SUB,
   OP_MUL, // Element-wise multiplications
   OP_MATMUL,
-  OP_CROSS_ENTOPRY
+  OP_CROSS_ENTROPY,
+  OP_MSE,
+  OP_L1_LOSS,
+  OP_BCE,
 };
 
 #define MAX_NODE_INPUTS 2

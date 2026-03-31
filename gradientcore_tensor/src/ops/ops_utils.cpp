@@ -59,6 +59,24 @@ Tensor *tensor_broadcast_view(Arena *arena, const Tensor *src,
   return t;
 }
 
+void apply_unary_op(Tensor *out, const Tensor *a, UnaryMathOp op) {
+  uint32_t indices[MAX_TENSOR_DIMS] = {0};
+
+  for (uint64_t i = 0; i < out->size; i++) {
+    uint64_t idx_out = tensor_get_flat_index(out, indices);
+    uint64_t idx_a = tensor_get_flat_index(a, indices);
+
+    out->storage->data[idx_out] = op(a->storage->data[idx_a]);
+
+    for (int32_t d = out->ndims - 1; d >= 0; d--) {
+      indices[d]++;
+      if (indices[d] < out->shape[d])
+        break;
+      indices[d] = 0;
+    }
+  }
+}
+
 void apply_binary_op(Tensor *out, const Tensor *a_view, const Tensor *b_view,
                      BinaryMathOp op) {
   uint32_t indices[MAX_TENSOR_DIMS] = {0};

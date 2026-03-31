@@ -14,4 +14,7 @@ typedef float (*BinaryMathOp)(float, float);
 void apply_binary_op(Tensor *out, const Tensor *a_view, const Tensor *b_view,
                      BinaryMathOp op);
 
+typedef float (*UnaryMathOp)(float);
+void apply_unary_op(Tensor *out, const Tensor *a, UnaryMathOp op);
+
 } // namespace gradientcore
