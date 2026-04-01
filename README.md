@@ -106,8 +106,38 @@ GradientCore/
 │   ├── Makefile               # Build configuration
 │   ├── model.bin              # Saved model weights (generated)
 │   └── README.md              # Example usage guide
+├── gradientcore_tensor/       # Advanced tensor-based autodiff framework
+│   ├── include/               # Public headers
+│   │   └── gradientcore/
+│   │       ├── autograd/      # Autograd engine with tape-based differentiation
+│   │       ├── core/          # Tensor and arena allocator
+│   │       ├── nn/            # Neural network layers (Linear)
+│   │       ├── ops/           # Comprehensive operators (30+ operations)
+│   │       ├── optim/         # Optimizers (SGD, Adam)
+│   │       ├── platform/      # Platform abstraction
+│   │       └── serialize/     # Model serialization support
+│   ├── src/                   # Implementation (modular)
+│   ├── example/mnist/         # MNIST training and inference examples
+│   │   ├── mnist_train.cpp    # Training with batch processing
+│   │   ├── mnist_inference.cpp # Inference application
+│   │   └── Makefile
+│   └── tests/                 # Test suite
 └── data/                      # Training and test data
 ```
+
+## GradientCore Tensor (Advanced Implementation)
+
+The `gradientcore_tensor/` folder contains an enhanced automatic differentiation framework built on top of core concepts, featuring:
+
+- **Advanced Autograd Engine**: Tape-based differentiation with full backpropagation support
+- **Rich Operator Set**: 30+ mathematical operations (activations, loss functions, element-wise ops)
+- **Tensor-Based Computation**: Multi-dimensional tensor operations for complex models
+- **Neural Network Layers**: Modular layer implementations (Linear layers with proper initialization)
+- **Multiple Optimizers**: SGD and Adam optimizer implementations with adaptive learning
+- **Model Serialization**: Save and load complete models for reproducibility
+- **Platform Abstraction**: Cross-platform support maintained
+
+This is a more feature-complete implementation suitable for larger neural network architectures and complex training workflows.
 
 ## Future Enhancements
 
