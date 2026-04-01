@@ -128,6 +128,21 @@ void graph_backward(GraphProgram *prog) {
       }
       break;
     }
+    case OP_DIV: {
+      if (a && b && a->grad) {
+        tensor_accumulate_grad_binary_custom(
+            a->grad, a->val, b->val, cur->grad,
+            [](float, float b_v, float dC) { return dC / b_v; });
+      }
+      if (a && b && b->grad) {
+        tensor_accumulate_grad_binary_custom(
+            b->grad, a->val, b->val, cur->grad,
+            [](float a_v, float b_v, float dC) {
+              return -a_v / (b_v * b_v) * dC;
+            });
+      }
+      break;
+    }
     case OP_MATMUL: {
       if (a && b) {
         ArenaTemp scratch = scratch_get(nullptr, 0);
@@ -168,6 +183,37 @@ void graph_backward(GraphProgram *prog) {
         tensor_accumulate_grad_custom(
             a->grad, a->val, cur->grad,
             [slope](float x, float dC) { return (x > 0.0f ? 1.0f : slope) * dC; });
+      }
+      break;
+    }
+    case OP_NEG: {
+      if (a && a->grad)
+        tensor_accumulate_grad(a->grad, cur->grad, -1.0f);
+      break;
+    }
+    case OP_EXP: {
+      if (a && a->grad) {
+        tensor_accumulate_grad_custom(
+            a->grad, cur->val, cur->grad,
+            [](float out_v, float dC) { return out_v * dC; });
+      }
+      break;
+    }
+    case OP_LOG: {
+      if (a && a->grad) {
+        tensor_accumulate_grad_custom(
+            a->grad, a->val, cur->grad,
+            [](float x, float dC) { return dC / x; });
+      }
+      break;
+    }
+    case OP_POW: {
+      if (a && a->grad) {
+        float p = cur->param;
+        tensor_accumulate_grad_custom(
+            a->grad, a->val, cur->grad, [p](float x, float dC) {
+              return p * std::pow(x, p - 1.0f) * dC;
+            });
       }
       break;
     }
@@ -218,6 +264,53 @@ void graph_backward(GraphProgram *prog) {
     case OP_SOFTMAX: {
       if (a && a->grad) {
         tensor_accumulate_grad_softmax(a->grad, cur->val, cur->grad);
+      }
+      break;
+    }
+    case OP_MUL_SCALAR: {
+      if (a && a->grad)
+        tensor_accumulate_grad(a->grad, cur->grad, cur->param);
+      break;
+    }
+    case OP_ADD_SCALAR: {
+      if (a && a->grad)
+        tensor_accumulate_grad(a->grad, cur->grad, 1.0f);
+      break;
+    }
+
+    // --- REDUCTIONS ---
+    case OP_SUM: {
+      if (a && a->grad) {
+        float upstream = cur->grad->storage->data[cur->grad->offset];
+        uint32_t indices[MAX_TENSOR_DIMS] = {0};
+        for (uint64_t j = 0; j < a->grad->size; j++) {
+          uint64_t idx = tensor_get_flat_index(a->grad, indices);
+          a->grad->storage->data[idx] += upstream;
+          for (int32_t d = a->grad->ndims - 1; d >= 0; d--) {
+            indices[d]++;
+            if (indices[d] < a->grad->shape[d])
+              break;
+            indices[d] = 0;
+          }
+        }
+      }
+      break;
+    }
+    case OP_MEAN: {
+      if (a && a->grad) {
+        float upstream = cur->grad->storage->data[cur->grad->offset];
+        float scale = upstream / (float)a->val->size;
+        uint32_t indices[MAX_TENSOR_DIMS] = {0};
+        for (uint64_t j = 0; j < a->grad->size; j++) {
+          uint64_t idx = tensor_get_flat_index(a->grad, indices);
+          a->grad->storage->data[idx] += scale;
+          for (int32_t d = a->grad->ndims - 1; d >= 0; d--) {
+            indices[d]++;
+            if (indices[d] < a->grad->shape[d])
+              break;
+            indices[d] = 0;
+          }
+        }
       }
       break;
     }

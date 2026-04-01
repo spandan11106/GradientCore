@@ -27,12 +27,21 @@ enum OpType {
   OP_GELU,
   OP_SILU,
   OP_LEAKY_RELU,
+  OP_NEG,
+  OP_EXP,
+  OP_LOG,
+  OP_POW,
+  OP_MUL_SCALAR,
+  OP_ADD_SCALAR,
+  OP_SUM,
+  OP_MEAN,
 
   // Binary Ops
   _OP_BINARY_START,
   OP_ADD,
   OP_SUB,
-  OP_MUL, // Element-wise multiplications
+  OP_MUL,
+  OP_DIV,
   OP_MATMUL,
   OP_CROSS_ENTROPY,
   OP_MSE,
