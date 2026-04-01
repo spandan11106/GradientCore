@@ -1,5 +1,4 @@
 #include "../../include/gradientcore/ops/ops.hpp"
-#include "../../include/gradientcore/ops/ops_utils.hpp"
 #include <algorithm>
 
 namespace gradientcore {
@@ -43,6 +42,7 @@ Node *node_matmul(Arena *arena, GraphContext *ctx, Node *a, Node *b) {
   }
 
   Node *out = node_create(arena, ctx, out_ndims, out_shape, flags);
+  if (out == nullptr) return nullptr;
   out->op = OP_MATMUL;
   out->inputs[0] = a;
   out->inputs[1] = b;

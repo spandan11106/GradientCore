@@ -43,6 +43,10 @@ struct Arena {
   }
 
   template <typename T> T *push_array(size_t count, bool non_zero = false) {
+    // Overflow check: ensure sizeof(T) * count doesn't wrap around
+    if (count > 0 && sizeof(T) > SIZE_MAX / count) {
+      return nullptr;
+    }
     return static_cast<T *>(push_raw(sizeof(T) * count, non_zero));
   }
 };

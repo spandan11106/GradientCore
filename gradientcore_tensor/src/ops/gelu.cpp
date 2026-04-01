@@ -15,8 +15,10 @@ Node *node_gelu(Arena *arena, GraphContext *ctx, Node *a) {
                        ? NODE_FLAG_REQUIRES_GRAD
                        : NODE_FLAG_NONE;
   Node *out = node_create(arena, ctx, a->val->ndims, a->val->shape, flags);
+  if (out == nullptr) return nullptr;
   out->op = OP_GELU;
   out->inputs[0] = a;
+  out->inputs[1] = nullptr;
 
   apply_unary_op(out->val, a->val, math_gelu);
   return out;

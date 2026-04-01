@@ -1,5 +1,4 @@
 #include "../../include/gradientcore/ops/ops.hpp"
-#include "../../include/gradientcore/ops/ops_utils.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -11,8 +10,10 @@ Node *node_softmax(Arena *arena, GraphContext *ctx, Node *a) {
     flags |= NODE_FLAG_REQUIRES_GRAD;
 
   Node *out = node_create(arena, ctx, a->val->ndims, a->val->shape, flags);
+  if (out == nullptr) return nullptr;
   out->op = OP_SOFTMAX;
   out->inputs[0] = a;
+  out->inputs[1] = nullptr;
 
   Tensor *tA = a->val;
   uint32_t C = tA->shape[tA->ndims - 1];

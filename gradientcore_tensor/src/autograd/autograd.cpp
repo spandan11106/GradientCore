@@ -25,9 +25,13 @@ Node *node_create(Arena *arena, GraphContext *ctx, uint32_t ndims,
   out->op = OP_CREATE;
 
   out->val = tensor_create_zeros(arena, ndims, shape);
+  if (out->val == nullptr)
+    return nullptr;
 
   if (flags & NODE_FLAG_REQUIRES_GRAD) {
     out->grad = tensor_create_zeros(arena, ndims, shape);
+    if (out->grad == nullptr)
+      return nullptr;
   } else
     out->grad = nullptr;
 

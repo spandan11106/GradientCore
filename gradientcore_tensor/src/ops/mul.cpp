@@ -23,6 +23,7 @@ Node *node_mul(Arena *arena, GraphContext *ctx, Node *a, Node *b) {
   }
 
   Node *out = node_create(arena, ctx, out_ndims, out_shape, flags);
+  if (out == nullptr) return nullptr;
   out->op = OP_MUL;
   out->inputs[0] = a;
   out->inputs[1] = b;

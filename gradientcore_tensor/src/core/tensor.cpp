@@ -37,10 +37,9 @@ Tensor *tensor_create(Arena *arena, uint32_t ndims, const uint32_t *shape) {
 
 Tensor *tensor_create_zeros(Arena *arena, uint32_t ndims,
                             const uint32_t *shape) {
-  Tensor *t = tensor_create(arena, ndims, shape);
-  if (t)
-    tensor_clear(t);
-  return t;
+  // tensor_create already zeros memory via push_raw (memset), so no
+  // additional tensor_clear is needed.
+  return tensor_create(arena, ndims, shape);
 }
 
 Tensor *tensor_view(Arena *arena, const Tensor *src) {
@@ -58,6 +57,8 @@ Tensor *tensor_view(Arena *arena, const Tensor *src) {
 
 Tensor *tensor_reshape(Arena *arena, const Tensor *src, uint32_t ndims,
                        const uint32_t *shape) {
+  if (ndims == 0 || ndims > MAX_TENSOR_DIMS)
+    return nullptr;
   if (!tensor_is_contiguous(src))
     return nullptr; // Cannot easily reshape a sliced/transposed view
 

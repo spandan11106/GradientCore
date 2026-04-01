@@ -25,6 +25,7 @@ Node *node_bce(Arena *arena, GraphContext *ctx, Node *pred, Node *target) {
                        ? NODE_FLAG_REQUIRES_GRAD
                        : NODE_FLAG_NONE;
   Node *out = node_create(arena, ctx, out_ndims, out_shape, flags);
+  if (out == nullptr) return nullptr;
   out->op = OP_BCE;
   out->inputs[0] = pred;
   out->inputs[1] = target;

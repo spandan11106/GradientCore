@@ -26,6 +26,7 @@ Node *node_cross_entropy(Arena *arena, GraphContext *ctx, Node *p, Node *q) {
   }
 
   Node *out = node_create(arena, ctx, out_ndims, out_shape, flags);
+  if (out == nullptr) return nullptr;
   out->op = OP_CROSS_ENTROPY;
   out->inputs[0] = p;
   out->inputs[1] = q;

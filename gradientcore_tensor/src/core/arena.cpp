@@ -21,6 +21,7 @@ Arena *Arena::create(uint64_t reserve_size, uint64_t commit_size,
   Arena *arena = static_cast<Arena *>(platform::mem_reserve(reserve_size));
 
   if (!platform::mem_commit(arena, commit_size)) {
+    platform::mem_release(arena, reserve_size);
     arena = nullptr;
   }
 
@@ -168,7 +169,7 @@ ArenaTemp scratch_get(Arena **conflicts, uint64_t num_conflicts) {
     bool conflict_found = false;
 
     for (uint32_t j = 0; j < num_conflicts; j++) {
-      if (scratch_arenas[i] == conflicts[j]) {
+      if (conflicts != nullptr && scratch_arenas[i] == conflicts[j]) {
         conflict_found = true;
         break;
       }

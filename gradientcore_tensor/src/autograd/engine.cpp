@@ -129,19 +129,19 @@ void graph_backward(GraphProgram *prog) {
       break;
     }
     case OP_MATMUL: {
-      if ((a && a->grad) || (b && b->grad)) {
+      if (a && b) {
         ArenaTemp scratch = scratch_get(nullptr, 0);
         
         // Check if we got a valid scratch arena
         if (scratch.arena != nullptr) {
-          if (a && a->grad) {
+          if (a->grad) {
             Tensor *b_T = tensor_transpose(scratch.arena, b->val,
                                            b->val->ndims - 2, b->val->ndims - 1);
             if (b_T != nullptr) {
               tensor_accumulate_grad_matmul(a->grad, cur->grad, b_T);
             }
           }
-          if (b && b->grad) {
+          if (b->grad) {
             Tensor *a_T = tensor_transpose(scratch.arena, a->val,
                                            a->val->ndims - 2, a->val->ndims - 1);
             if (a_T != nullptr) {
@@ -224,12 +224,12 @@ void graph_backward(GraphProgram *prog) {
 
     // --- LOSS FUNCTIONS ---
     case OP_MSE: {
-      if (a && a->grad) {
+      if (a && b && a->grad) {
         tensor_accumulate_grad_binary_custom(
             a->grad, a->val, b->val, cur->grad,
             [](float p, float t, float dC) { return 2.0f * (p - t) * dC; });
       }
-      if (b && b->grad) {
+      if (a && b && b->grad) {
         tensor_accumulate_grad_binary_custom(
             b->grad, a->val, b->val, cur->grad,
             [](float p, float t, float dC) { return -2.0f * (p - t) * dC; });
@@ -237,14 +237,14 @@ void graph_backward(GraphProgram *prog) {
       break;
     }
     case OP_L1_LOSS: {
-      if (a && a->grad) {
+      if (a && b && a->grad) {
         tensor_accumulate_grad_binary_custom(
             a->grad, a->val, b->val, cur->grad, [](float p, float t, float dC) {
               // Subgradient convention: derivative is 0 when p == t
               return (p > t ? 1.0f : (p < t ? -1.0f : 0.0f)) * dC;
             });
       }
-      if (b && b->grad) {
+      if (a && b && b->grad) {
         tensor_accumulate_grad_binary_custom(
             b->grad, a->val, b->val, cur->grad, [](float p, float t, float dC) {
               return (p > t ? -1.0f : (p < t ? 1.0f : 0.0f)) * dC;
@@ -253,14 +253,14 @@ void graph_backward(GraphProgram *prog) {
       break;
     }
     case OP_CROSS_ENTROPY: {
-      if (a && a->grad) { // a = p (targets)
+      if (a && b && a->grad) { // a = p (targets)
         tensor_accumulate_grad_binary_custom(a->grad, a->val, b->val, cur->grad,
                                              [](float p, float q, float dC) {
                                                float qi = q > 0.0f ? q : 1e-12f;
                                                return -std::log(qi) * dC; // dL/dp = -log(q)
                                              });
       }
-      if (b && b->grad) { // b = q (predictions)
+      if (a && b && b->grad) { // b = q (predictions)
         tensor_accumulate_grad_binary_custom(b->grad, a->val, b->val, cur->grad,
                                              [](float p, float q, float dC) {
                                                float qi = q > 0.0f ? q : 1e-12f;
@@ -270,14 +270,14 @@ void graph_backward(GraphProgram *prog) {
       break;
     }
     case OP_BCE: {
-      if (a && a->grad) { // a = pred
+      if (a && b && a->grad) { // a = pred
         tensor_accumulate_grad_binary_custom(
             a->grad, a->val, b->val, cur->grad, [](float p, float t, float dC) {
               p = std::fmax(std::fmin(p, 1.0f - 1e-12f), 1e-12f);
               return (-t / p + (1.0f - t) / (1.0f - p)) * dC;
             });
       }
-      if (b && b->grad) { // b = target, dL/dt = -log(p) + log(1-p)
+      if (a && b && b->grad) { // b = target, dL/dt = -log(p) + log(1-p)
         tensor_accumulate_grad_binary_custom(
             b->grad, a->val, b->val, cur->grad, [](float p, float t, float dC) {
               (void)t;

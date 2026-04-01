@@ -13,6 +13,7 @@ Node *node_relu(Arena *arena, GraphContext *ctx, Node *a) {
   }
 
   Node *out = node_create(arena, ctx, a->val->ndims, a->val->shape, flags);
+  if (out == nullptr) return nullptr;
   out->op = OP_RELU;
   out->inputs[0] = a;
   out->inputs[1] = nullptr;
