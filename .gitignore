@@ -48,6 +48,7 @@ compile_commands.json
 # Build executables
 example/mnist_example
 example/model.bin
+gradientcore_tensor/example/mnist/model.bin
 
 # Logs and temporary files
 *.log
