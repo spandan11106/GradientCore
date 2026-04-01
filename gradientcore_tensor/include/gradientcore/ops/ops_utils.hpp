@@ -31,22 +31,29 @@ inline void tensor_accumulate_grad_custom(Tensor *target_grad,
                                           const Tensor *val_tensor,
                                           const Tensor *upstream_grad,
                                           Func derivative_func) {
+  if (upstream_grad->ndims < val_tensor->ndims ||
+      upstream_grad->ndims < target_grad->ndims)
+    return;
+
   uint32_t indices[MAX_TENSOR_DIMS] = {0};
+  uint32_t val_dim_offset = upstream_grad->ndims - val_tensor->ndims;
+  uint32_t target_dim_offset = upstream_grad->ndims - target_grad->ndims;
+  
   for (uint64_t i = 0; i < upstream_grad->size; i++) {
     uint64_t idx_up = tensor_get_flat_index(upstream_grad, indices);
 
     uint32_t val_indices[MAX_TENSOR_DIMS] = {0};
-    int32_t val_dim_offset = upstream_grad->ndims - val_tensor->ndims;
     for (uint32_t d = 0; d < val_tensor->ndims; d++) {
-      val_indices[d] = (val_tensor->shape[d] == 1) ? 0 : indices[d + val_dim_offset];
+      uint32_t up_d = d + val_dim_offset;
+      val_indices[d] = (val_tensor->shape[d] == 1) ? 0 : indices[up_d];
     }
     uint64_t idx_val = tensor_get_flat_index(val_tensor, val_indices);
 
     uint32_t target_indices[MAX_TENSOR_DIMS] = {0};
-    int32_t dim_offset = upstream_grad->ndims - target_grad->ndims;
     for (uint32_t d = 0; d < target_grad->ndims; d++) {
+      uint32_t up_d = d + target_dim_offset;
       target_indices[d] =
-          (target_grad->shape[d] == 1) ? 0 : indices[d + dim_offset];
+          (target_grad->shape[d] == 1) ? 0 : indices[up_d];
     }
     uint64_t idx_target = tensor_get_flat_index(target_grad, target_indices);
 
@@ -69,29 +76,38 @@ inline void tensor_accumulate_grad_binary_custom(Tensor *target_grad,
                                                  const Tensor *b_val,
                                                  const Tensor *upstream_grad,
                                                  Func derivative_func) {
+  if (upstream_grad->ndims < a_val->ndims ||
+      upstream_grad->ndims < b_val->ndims ||
+      upstream_grad->ndims < target_grad->ndims)
+    return;
+
   uint32_t indices[MAX_TENSOR_DIMS] = {0};
+  uint32_t a_dim_offset = upstream_grad->ndims - a_val->ndims;
+  uint32_t b_dim_offset = upstream_grad->ndims - b_val->ndims;
+  uint32_t target_dim_offset = upstream_grad->ndims - target_grad->ndims;
+  
   for (uint64_t i = 0; i < upstream_grad->size; i++) {
     uint64_t idx_up = tensor_get_flat_index(upstream_grad, indices);
 
     uint32_t a_indices[MAX_TENSOR_DIMS] = {0};
-    int32_t a_dim_offset = upstream_grad->ndims - a_val->ndims;
     for (uint32_t d = 0; d < a_val->ndims; d++) {
-      a_indices[d] = (a_val->shape[d] == 1) ? 0 : indices[d + a_dim_offset];
+      uint32_t up_d = d + a_dim_offset;
+      a_indices[d] = (a_val->shape[d] == 1) ? 0 : indices[up_d];
     }
     uint64_t idx_a = tensor_get_flat_index(a_val, a_indices);
 
     uint32_t b_indices[MAX_TENSOR_DIMS] = {0};
-    int32_t b_dim_offset = upstream_grad->ndims - b_val->ndims;
     for (uint32_t d = 0; d < b_val->ndims; d++) {
-      b_indices[d] = (b_val->shape[d] == 1) ? 0 : indices[d + b_dim_offset];
+      uint32_t up_d = d + b_dim_offset;
+      b_indices[d] = (b_val->shape[d] == 1) ? 0 : indices[up_d];
     }
     uint64_t idx_b = tensor_get_flat_index(b_val, b_indices);
 
     uint32_t target_indices[MAX_TENSOR_DIMS] = {0};
-    int32_t dim_offset = upstream_grad->ndims - target_grad->ndims;
     for (uint32_t d = 0; d < target_grad->ndims; d++) {
+      uint32_t up_d = d + target_dim_offset;
       target_indices[d] =
-          (target_grad->shape[d] == 1) ? 0 : indices[d + dim_offset];
+          (target_grad->shape[d] == 1) ? 0 : indices[up_d];
     }
     uint64_t idx_target = tensor_get_flat_index(target_grad, target_indices);
 

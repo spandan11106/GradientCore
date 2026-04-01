@@ -65,6 +65,11 @@ void *Arena::push_raw(uint64_t size, bool non_zero) {
   out = static_cast<uint8_t *>(static_cast<void *>(curr)) + pos_aligned;
   uint64_t new_pos = pos_aligned + size;
 
+  // Overflow check: if addition wrapped around, force the growth/error path
+  if (new_pos < pos_aligned) {
+    new_pos = UINT64_MAX;
+  }
+
   if (new_pos > curr->reserve_size) {
     out = nullptr;
 
@@ -121,29 +126,36 @@ void *Arena::push_raw(uint64_t size, bool non_zero) {
   return out;
 }
 
-void Arena::pop(uint64_t size) {
-  size = std::min(size, this->get_pos());
+void Arena::pop_to(uint64_t pos) {
+  uint64_t cur_pos = this->get_pos();
+  pos = std::min(pos, cur_pos);
 
   Arena *curr = this->current;
-
-  while (curr != nullptr && size > curr->pos) {
+  while (curr != nullptr && pos <= curr->base_pos) {
     Arena *previous = curr->prev;
-
-    size -= curr->pos;
-    platform::mem_release(curr, reserve_size);
-
+    if (previous == nullptr) {
+      curr->pos = sizeof(Arena);
+      break;
+    }
+    platform::mem_release(curr, curr->reserve_size);
     curr = previous;
   }
 
   this->current = curr;
-  size = std::min(curr->pos - sizeof(Arena), size);
-  curr->pos -= size;
+  if (curr != nullptr) {
+    if (pos > curr->base_pos) {
+      curr->pos = pos - curr->base_pos;
+      if (curr->pos < sizeof(Arena)) curr->pos = sizeof(Arena);
+    } else {
+      curr->pos = sizeof(Arena);
+    }
+  }
 }
 
-void Arena::pop_to(uint64_t pos) {
+void Arena::pop(uint64_t size) {
   uint64_t cur_pos = this->get_pos();
-  pos = std::min(pos, cur_pos);
-  this->pop(cur_pos - pos);
+  size = std::min(size, cur_pos);
+  this->pop_to(cur_pos - size);
 }
 
 // thread_local replaces TS_THREAD_LOCAL

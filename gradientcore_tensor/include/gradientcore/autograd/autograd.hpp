@@ -53,6 +53,7 @@ struct Node {
 
   OpType op;
   Node *inputs[MAX_NODE_INPUTS];
+  float param;  
 };
 
 struct GraphContext {

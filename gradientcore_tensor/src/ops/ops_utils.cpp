@@ -98,11 +98,17 @@ void tensor_accumulate_grad(Tensor *target_grad, const Tensor *upstream_grad,
                             float scale) {
   uint32_t indices[MAX_TENSOR_DIMS] = {0};
 
+  // upstream_grad->ndims should always be >= target_grad->ndims for
+  // broadcasting. If not, the operation is invalid.
+  if (upstream_grad->ndims < target_grad->ndims)
+    return;
+
+  uint32_t dim_offset = upstream_grad->ndims - target_grad->ndims;
+
   for (uint64_t i = 0; i < upstream_grad->size; i++) {
     uint64_t idx_upstream = tensor_get_flat_index(upstream_grad, indices);
 
     uint32_t target_indices[MAX_TENSOR_DIMS] = {0};
-    int32_t dim_offset = upstream_grad->ndims - target_grad->ndims;
 
     for (uint32_t d = 0; d < target_grad->ndims; d++) {
       uint32_t up_d = d + dim_offset;
@@ -195,20 +201,31 @@ void tensor_accumulate_grad_softmax(Tensor *a_grad, const Tensor *out_val,
   uint32_t C = out_val->shape[out_val->ndims - 1];
   uint64_t outer_size = out_val->size / C;
 
-  uint32_t indices[MAX_TENSOR_DIMS] = {0};
+  uint32_t batch_indices[MAX_TENSOR_DIMS] = {0};
 
-  for (uint64_t i = 0; i < outer_size; i++) {
-    // FIXED: Dropped physical `offset = i * C;` for odometer indexing
+  for (uint64_t b = 0; b < outer_size; b++) {
     float dot = 0.0f;
     for (uint32_t j = 0; j < C; j++) {
+      uint32_t indices[MAX_TENSOR_DIMS] = {0};
+      for (uint32_t d = 0; d < out_val->ndims - 1; d++) {
+        indices[d] = batch_indices[d];
+      }
       indices[out_val->ndims - 1] = j;
+      
       float y_i = out_val->storage->data[tensor_get_flat_index(out_val, indices)];
       float dy_i = upstream_grad->storage->data[tensor_get_flat_index(upstream_grad, indices)];
       dot += y_i * dy_i;
     }
 
+    // Accumulate gradients
     for (uint32_t j = 0; j < C; j++) {
+      uint32_t indices[MAX_TENSOR_DIMS] = {0};
+      // Copy batch indices
+      for (uint32_t d = 0; d < out_val->ndims - 1; d++) {
+        indices[d] = batch_indices[d];
+      }
       indices[out_val->ndims - 1] = j;
+
       uint64_t idx_out = tensor_get_flat_index(out_val, indices);
       uint64_t idx_up = tensor_get_flat_index(upstream_grad, indices);
       uint64_t idx_grad = tensor_get_flat_index(a_grad, indices);
@@ -218,11 +235,11 @@ void tensor_accumulate_grad_softmax(Tensor *a_grad, const Tensor *out_val,
       a_grad->storage->data[idx_grad] += y_i * (dy_i - dot);
     }
 
-    // Odometer increment for outer dimensions
-    for (int32_t d = out_val->ndims - 2; d >= 0; d--) {
-      indices[d]++;
-      if (indices[d] < out_val->shape[d]) break;
-      indices[d] = 0;
+    // Increment batch indices (odometer)
+    for (int32_t d = (int32_t)out_val->ndims - 2; d >= 0; d--) {
+      batch_indices[d]++;
+      if (batch_indices[d] < out_val->shape[d]) break;
+      batch_indices[d] = 0;
     }
   }
 }

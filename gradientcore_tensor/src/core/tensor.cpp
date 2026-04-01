@@ -7,6 +7,12 @@ Tensor *tensor_create(Arena *arena, uint32_t ndims, const uint32_t *shape) {
   if (arena == nullptr || ndims == 0 || ndims > MAX_TENSOR_DIMS)
     return nullptr;
 
+  // Validate no zero-sized dimensions
+  for (uint32_t i = 0; i < ndims; i++) {
+    if (shape[i] == 0)
+      return nullptr;
+  }
+
   Tensor *t = arena->push<Tensor>();
   t->ndims = ndims;
   t->size = 1;
@@ -142,6 +148,41 @@ void tensor_fill(Tensor *t, float val) {
       }
     }
   }
+}
+
+bool tensor_copy(Tensor *dst, const Tensor *src) {
+  if (dst == nullptr || src == nullptr)
+    return false;
+  
+  if (dst->size != src->size)
+    return false;  
+  
+  if (dst->ndims != src->ndims)
+    return false; 
+
+  for (uint32_t i = 0; i < dst->ndims; i++) {
+    if (dst->shape[i] != src->shape[i])
+      return false;
+  }
+  
+  uint32_t indices[MAX_TENSOR_DIMS] = {0};
+  
+  for (uint64_t i = 0; i < src->size; i++) {
+    uint64_t src_idx = tensor_get_flat_index(src, indices);
+    uint64_t dst_idx = tensor_get_flat_index(dst, indices);
+    
+    dst->storage->data[dst_idx] = src->storage->data[src_idx];
+    
+    for (int32_t d = src->ndims - 1; d >= 0; d--) {
+      indices[d]++;
+      if (indices[d] < src->shape[d]) {
+        break;
+      }
+      indices[d] = 0;
+    }
+  }
+  
+  return true;
 }
 
 } // namespace gradientcore

@@ -33,6 +33,7 @@ Node *node_create(Arena *arena, GraphContext *ctx, uint32_t ndims,
 
   out->inputs[0] = nullptr;
   out->inputs[1] = nullptr;
+  out->param = 0.0f;
 
   return out;
 }

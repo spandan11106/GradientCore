@@ -52,7 +52,7 @@ struct ArenaTemp {
   uint64_t start_pos;
 
   explicit ArenaTemp(Arena *arena)
-      : arena(arena), start_pos(arena->get_pos()) {}
+      : arena(arena), start_pos(arena ? arena->get_pos() : 0) {}
   ~ArenaTemp() {
     if (arena)
       arena->pop_to(start_pos);
@@ -65,7 +65,7 @@ struct ArenaTemp {
       : arena(other.arena), start_pos(other.start_pos) {
     other.arena = nullptr;
   }
-  ArenaTemp &operator-(ArenaTemp &&other) noexcept {
+  ArenaTemp &operator=(ArenaTemp &&other) noexcept {
     if (this != &other) {
       arena = other.arena;
       start_pos = other.start_pos;

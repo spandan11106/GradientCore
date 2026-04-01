@@ -38,7 +38,8 @@ Node *node_softmax(Arena *arena, GraphContext *ctx, Node *a) {
       sum += e;
     }
 
-    float inv_sum = 1.0f / sum;
+    // Avoid division by zero - if sum is 0 or extremely small, use uniform distribution
+    float inv_sum = (sum > 1e-12f) ? (1.0f / sum) : (1.0f / C);
     for (uint32_t j = 0; j < C; j++) {
       indices[tA->ndims - 1] = j;
       out->val->storage->data[tensor_get_flat_index(out->val, indices)] *= inv_sum;
